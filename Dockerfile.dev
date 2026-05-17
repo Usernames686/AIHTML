@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1.4
+FROM python:3.11-slim-trixie
+
+WORKDIR /app
+
+ENV APP_DATA_DIRECTORY=/app_data \
+    TEMP_DIRECTORY=/tmp/aihtml \
+    UV_SYSTEM_PYTHON=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/root/.local/bin:${PATH}" \
+    PRESENTON_APP_ROOT=/app \
+    MEM0_ENABLED=false \
+    START_OLLAMA=false
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl nginx fontconfig \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY scripts/presenton-terminal-banner.mjs /app/scripts/presenton-terminal-banner.mjs
+
+COPY servers/fastapi /app/servers/fastapi
+WORKDIR /app/servers/fastapi
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv export --frozen --no-dev --no-emit-project -o /tmp/requirements.txt \
+    && uv pip install --system -r /tmp/requirements.txt \
+    && uv pip install --system --no-deps .
+
+WORKDIR /app
+COPY nginx.conf /etc/nginx/nginx.conf
+
+EXPOSE 80
+CMD ["node", "/app/start.js", "--dev"]
