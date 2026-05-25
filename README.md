@@ -151,21 +151,6 @@ AIHTML
 └── README.md
 ```
 
-## Docker 镜像为什么比源码大
-
-源码清理后体积较小，但 Docker 镜像会包含：
-
-- Node.js 运行环境和前端依赖
-- Python 运行环境和后端依赖
-- Next.js 构建产物
-- 系统级依赖、字体、图片处理库等
-
-因此源码可能只有几十 MB，而完整 Docker 镜像达到 GB 级是正常现象。部署时可定期清理构建缓存：
-
-```bash
-docker builder prune
-docker image prune
-```
 
 ## 常用命令
 
