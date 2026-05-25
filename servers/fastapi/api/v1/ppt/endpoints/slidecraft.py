@@ -157,6 +157,14 @@ def _build_user_prompt(request: SlideCraftGenerateRequest) -> str:
         if request.include_speaker_notes
         else "Do not include speaker notes."
     )
+    language_guard = ""
+    if language in {"中文", "Chinese", "chinese", "zh", "zh-CN", "zh_CN"}:
+        language_guard = (
+            "All audience-facing text, JSON title, HTML <title>, navigation labels, "
+            "and slide copy must be Simplified Chinese. Set <html lang=\"zh-CN\">. "
+            "Use Chinese fonts such as Noto Sans SC or Source Han Sans. Do not use "
+            "Japanese kana, Japanese copy, placeholder mojibake, or mixed-language titles."
+        )
 
     return f"""
 # Current Date
@@ -173,6 +181,9 @@ Speaker notes: {notes}
 
 # Additional Instructions
 {instructions if instructions else "No additional instructions."}
+
+# Language Guard
+{language_guard if language_guard else "Follow the requested language consistently across all visible text."}
 
 Return a single HTML document only. No PPTX, PDF, image export, upload flow, or template-library assumptions.
 The output should be useful as a standalone web page that can be previewed in an

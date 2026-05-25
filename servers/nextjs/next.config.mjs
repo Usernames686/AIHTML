@@ -13,9 +13,18 @@ const nextConfig = {
       }
     : {}),
 
-  // Rewrites for development - proxy font requests to FastAPI backend
+  // Rewrites for development - proxy FastAPI requests when nginx is not running.
   async rewrites() {
+    const fastApiBase =
+      process.env.FAST_API_INTERNAL_URL ||
+      process.env.NEXT_PUBLIC_FAST_API ||
+      'http://localhost:8000';
+
     return [
+      {
+        source: '/api/v1/:path*',
+        destination: `${fastApiBase.replace(/\/+$/, '')}/api/v1/:path*`,
+      },
       {
         source: '/app_data/fonts/:path*',
         destination: 'http://localhost:5000/app_data/fonts/:path*',

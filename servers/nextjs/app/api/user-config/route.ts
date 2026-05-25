@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
+import path from "path";
 import { LLMConfig } from "@/types/llm_config";
 
-const userConfigPath = process.env.USER_CONFIG_PATH!;
+const userConfigPath =
+  process.env.USER_CONFIG_PATH?.trim() ||
+  path.join(process.cwd(), "..", "..", "user_data", "user_config.json");
 const canChangeKeys = process.env.CAN_CHANGE_KEYS !== "false";
 const AUTH_FIELDS = new Set([
   "AUTH_USERNAME",
@@ -24,6 +27,24 @@ function stripAuthFieldsFromIncoming(config: Record<string, unknown>) {
   );
 }
 
+function readExistingConfig(): LLMConfig {
+  if (!fs.existsSync(userConfigPath)) {
+    return {};
+  }
+
+  try {
+    const configData = fs.readFileSync(userConfigPath, "utf-8");
+    return JSON.parse(configData) as LLMConfig;
+  } catch {
+    return {};
+  }
+}
+
+function writeUserConfig(config: LLMConfig) {
+  fs.mkdirSync(path.dirname(userConfigPath), { recursive: true });
+  fs.writeFileSync(userConfigPath, JSON.stringify(config, null, 2));
+}
+
 export async function GET() {
   if (!canChangeKeys) {
     return NextResponse.json({
@@ -31,18 +52,7 @@ export async function GET() {
       status: 403,
     });
   }
-  if (!userConfigPath) {
-    return NextResponse.json({
-      error: "User config path not found",
-      status: 500,
-    });
-  }
-
-  if (!fs.existsSync(userConfigPath)) {
-    return NextResponse.json({});
-  }
-  const configData = fs.readFileSync(userConfigPath, "utf-8");
-  const parsedConfig = JSON.parse(configData) as Record<string, unknown>;
+  const parsedConfig = readExistingConfig() as Record<string, unknown>;
   return NextResponse.json(stripAuthFields(parsedConfig));
 }
 
@@ -56,12 +66,7 @@ export async function POST(request: Request) {
   const userConfig = stripAuthFieldsFromIncoming(
     (await request.json()) as Record<string, unknown>
   ) as LLMConfig;
-  let existingConfig: LLMConfig = {};
-  if (fs.existsSync(userConfigPath)) {
-    const configData = fs.readFileSync(userConfigPath, "utf-8");
-
-    existingConfig = JSON.parse(configData);
-  }
+  const existingConfig = readExistingConfig();
   const definedIncomingEntries = Object.entries(userConfig).filter(
     ([, value]) => value !== undefined
   );
@@ -97,7 +102,7 @@ export async function POST(request: Request) {
       ? userConfig.DISABLE_ANONYMOUS_TRACKING
       : existingConfig.DISABLE_ANONYMOUS_TRACKING,
   };
-  fs.writeFileSync(userConfigPath, JSON.stringify(mergedConfig));
+  writeUserConfig(mergedConfig);
   return NextResponse.json(
     stripAuthFields(mergedConfig as Record<string, unknown>)
   );

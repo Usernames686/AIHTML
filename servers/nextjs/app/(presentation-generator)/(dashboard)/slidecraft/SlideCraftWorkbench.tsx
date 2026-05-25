@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -20,11 +20,20 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { LLMConfig } from "@/types/llm_config";
 import {
   SlideCraftApi,
   SlideCraftGenerateResponse,
@@ -52,6 +61,14 @@ type ValidationItem = {
   label: string;
   passed: boolean;
 };
+
+type ModelApiForm = {
+  url: string;
+  apiKey: string;
+  model: string;
+};
+
+type ModelConfigStatus = "unknown" | "configured" | "missing";
 
 const STYLE_OPTIONS: StyleOption[] = [
   {
@@ -218,10 +235,24 @@ const SlideCraftWorkbench = () => {
   );
   const [includeSpeakerNotes, setIncludeSpeakerNotes] = useState(true);
   const [result, setResult] = useState<SlideCraftGenerateResponse | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
   const [isFullscreenPreviewOpen, setIsFullscreenPreviewOpen] = useState(false);
+  const [isModelConfigOpen, setIsModelConfigOpen] = useState(false);
+  const [isSavingModelConfig, setIsSavingModelConfig] = useState(false);
+  const [modelConfigStatus, setModelConfigStatus] =
+    useState<ModelConfigStatus>("unknown");
+  const [modelApiForm, setModelApiForm] = useState<ModelApiForm>({
+    url: "",
+    apiKey: "",
+    model: "",
+  });
   const previewFrameRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    void loadModelConfig();
+  }, []);
 
   const selectedStyle = useMemo(
     () => STYLE_OPTIONS.find((item) => item.value === style) ?? STYLE_OPTIONS[0],
@@ -241,6 +272,69 @@ const SlideCraftWorkbench = () => {
     [result]
   );
 
+  const loadModelConfig = async () => {
+    try {
+      const response = await fetch("/api/user-config", { cache: "no-cache" });
+      if (!response.ok) {
+        setModelConfigStatus("unknown");
+        return;
+      }
+
+      const config = (await response.json()) as LLMConfig;
+      const nextForm = {
+        url: config.CUSTOM_LLM_URL ?? "",
+        apiKey: config.CUSTOM_LLM_API_KEY ?? "",
+        model: config.CUSTOM_MODEL ?? "",
+      };
+      setModelApiForm(nextForm);
+      setModelConfigStatus(
+        config.LLM === "custom" && nextForm.url && nextForm.model
+          ? "configured"
+          : "missing"
+      );
+    } catch {
+      setModelConfigStatus("unknown");
+    }
+  };
+
+  const saveModelConfig = async () => {
+    const url = modelApiForm.url.trim();
+    const model = modelApiForm.model.trim();
+    const apiKey = modelApiForm.apiKey.trim();
+
+    if (!url || !model) {
+      toast.error("请填写接口地址和模型名。");
+      return;
+    }
+
+    setIsSavingModelConfig(true);
+    try {
+      const response = await fetch("/api/user-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          LLM: "custom",
+          CUSTOM_LLM_URL: url,
+          CUSTOM_LLM_API_KEY: apiKey,
+          CUSTOM_MODEL: model,
+          DISABLE_IMAGE_GENERATION: true,
+        } satisfies LLMConfig),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readResponseError(response));
+      }
+
+      setModelConfigStatus("configured");
+      setIsModelConfigOpen(false);
+      toast.success("模型 API 已保存。");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "模型 API 保存失败。");
+    } finally {
+      setIsSavingModelConfig(false);
+    }
+  };
+
   const generate = async () => {
     if (!topic.trim()) {
       toast.error("请先输入内容简述。");
@@ -248,6 +342,7 @@ const SlideCraftWorkbench = () => {
     }
 
     setIsGenerating(true);
+    setGenerationError(null);
     try {
       const response = await SlideCraftApi.generate({
         topic: topic.trim(),
@@ -260,9 +355,13 @@ const SlideCraftWorkbench = () => {
       });
       setResult(response);
       setPreviewKey((current) => current + 1);
+      setGenerationError(null);
       toast.success("HTML 幻灯片已生成。");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "生成失败，已保留上一次结果。");
+      const message =
+        error instanceof Error ? error.message : "生成失败，已保留上一次结果。";
+      setGenerationError(message);
+      toast.error(message);
     } finally {
       setIsGenerating(false);
     }
@@ -311,10 +410,26 @@ const SlideCraftWorkbench = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-[#6F6558]">
-          <span className="inline-flex items-center gap-2 rounded-full border border-[#D8D0C3] bg-white/70 px-3 py-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsModelConfigOpen(true);
+              void loadModelConfig();
+            }}
+            className="inline-flex items-center gap-2 rounded-full border border-[#D8D0C3] bg-white/80 px-3 py-2 transition duration-200 hover:border-[#BCA988] hover:bg-white active:scale-[0.98]"
+          >
             <Cpu className="h-3.5 w-3.5" />
             后端模型 API
-          </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                modelConfigStatus === "configured"
+                  ? "bg-[#EDF7E7] text-[#416F32]"
+                  : "bg-[#FFF1DA] text-[#8F4F11]"
+              }`}
+            >
+              {modelConfigStatus === "configured" ? "已配置" : "未确认"}
+            </span>
+          </button>
           <span className="inline-flex items-center gap-2 rounded-full border border-[#D8D0C3] bg-white/70 px-3 py-2">
             <FileText className="h-3.5 w-3.5" />
             单文件 HTML
@@ -322,8 +437,8 @@ const SlideCraftWorkbench = () => {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1500px] gap-5 xl:grid-cols-[480px_minmax(0,1fr)]">
-        <section className="rounded-[28px] border border-[#D8D0C3] bg-[#FFFDF8] p-5 shadow-[0_24px_70px_-40px_rgba(67,54,38,0.45)]">
+      <div className="mx-auto grid max-w-[1500px] gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+        <section className="rounded-[24px] border border-[#D8D0C3] bg-[#FFFDF8] p-5 shadow-[0_24px_70px_-40px_rgba(67,54,38,0.45)]">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <p className="font-syne text-sm font-semibold text-[#9A5B14]">
@@ -388,18 +503,23 @@ const SlideCraftWorkbench = () => {
               />
             </div>
 
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Label className="flex items-center gap-2">
-                  <Palette className="h-4 w-4" />
-                  视觉风格
-                </Label>
-                <span className="text-xs text-[#7A7063]">
-                  {filteredStyleOptions.length} / {STYLE_OPTIONS.length} 个可见
+            <div className="rounded-[22px] border border-[#E6DED1] bg-[#FAF4EA] p-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-semibold text-[#191714]">
+                    <Palette className="h-4 w-4 text-[#9A5B14]" />
+                    选择视觉风格
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-[#6F6558]">
+                    当前：{selectedStyle.label} · {selectedStyle.bestFor}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-[#7A4C18]">
+                  {filteredStyleOptions.length} / {STYLE_OPTIONS.length}
                 </span>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
                 {STYLE_CATEGORIES.map((category) => {
                   const active = styleCategory === category;
                   return (
@@ -407,7 +527,7 @@ const SlideCraftWorkbench = () => {
                       key={category}
                       type="button"
                       onClick={() => setStyleCategory(category)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition duration-200 active:scale-[0.98] ${
+                      className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition duration-200 active:scale-[0.98] ${
                         active
                           ? "border-[#9A5B14] bg-[#9A5B14] text-white"
                           : "border-[#D8D0C3] bg-white text-[#6F6558] hover:border-[#C9BDAA] hover:text-[#191714]"
@@ -419,7 +539,7 @@ const SlideCraftWorkbench = () => {
                 })}
               </div>
 
-              <div className="grid max-h-[410px] gap-2 overflow-auto pr-1 sm:grid-cols-2">
+              <div className="flex gap-3 overflow-x-auto pb-1">
                 {filteredStyleOptions.map((item, index) => {
                   const isSelected = item.value === style;
                   return (
@@ -427,9 +547,9 @@ const SlideCraftWorkbench = () => {
                       key={item.value}
                       type="button"
                       onClick={() => setStyle(item.value)}
-                      className={`group relative overflow-hidden rounded-2xl border p-3 text-left transition duration-200 active:scale-[0.99] ${
+                      className={`group min-h-[132px] w-[240px] shrink-0 rounded-2xl border p-3 text-left transition duration-200 active:scale-[0.99] ${
                         isSelected
-                          ? "border-[#9A5B14] bg-[#FFF4DF] shadow-[0_12px_30px_-22px_rgba(116,69,19,0.7)]"
+                          ? "border-[#9A5B14] bg-[#FFF4DF] shadow-[0_14px_36px_-26px_rgba(116,69,19,0.8)]"
                           : "border-[#E6DED1] bg-white hover:border-[#C9BDAA]"
                       }`}
                       style={{ animationDelay: `${index * 35}ms` }}
@@ -438,22 +558,15 @@ const SlideCraftWorkbench = () => {
                         <span
                           className={`block h-1.5 w-16 rounded-full bg-gradient-to-r ${item.accent}`}
                         />
-                        <span className="rounded-full bg-[#F7F1E7] px-2 py-1 text-[10px] font-semibold text-[#7A4C18]">
-                          {item.category}
-                        </span>
-                      </div>
-                      <span className="flex items-start justify-between gap-3">
-                        <span>
-                          <span className="block text-sm font-semibold text-[#191714]">
-                            {item.label}
-                          </span>
-                          <span className="mt-1 block text-xs leading-5 text-[#6F6558]">
-                            {item.description}
-                          </span>
-                        </span>
                         {isSelected ? (
                           <CheckCircle2 className="h-4 w-4 shrink-0 text-[#9A5B14]" />
                         ) : null}
+                      </div>
+                      <span className="block text-sm font-semibold text-[#191714]">
+                        {item.label}
+                      </span>
+                      <span className="mt-2 block text-xs leading-5 text-[#6F6558]">
+                        {item.description}
                       </span>
                       <span className="mt-3 inline-flex rounded-full bg-[#F7F1E7] px-2 py-1 text-[11px] font-medium text-[#7A4C18]">
                         {item.bestFor}
@@ -462,18 +575,6 @@ const SlideCraftWorkbench = () => {
                   );
                 })}
               </div>
-            </div>
-
-            <div className="rounded-2xl border border-[#E6DED1] bg-[#FAF4EA] p-3">
-              <p className="text-sm font-semibold text-[#191714]">
-                已选择：{selectedStyle.label}
-              </p>
-              <p className="mt-1 text-sm text-[#6F6558]">
-                {selectedStyle.description}
-              </p>
-              <p className="mt-2 text-xs text-[#7A7063]">
-                当前分类：{selectedStyle.category} · 适合：{selectedStyle.bestFor}
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -510,7 +611,7 @@ const SlideCraftWorkbench = () => {
           </div>
         </section>
 
-        <section className="min-h-[720px] overflow-hidden rounded-[28px] border border-[#D8D0C3] bg-[#FFFDF8] shadow-[0_24px_70px_-40px_rgba(67,54,38,0.45)]">
+        <section className="min-h-[720px] overflow-hidden rounded-[24px] border border-[#D8D0C3] bg-[#FFFDF8] shadow-[0_24px_70px_-40px_rgba(67,54,38,0.45)]">
           <div className="flex flex-col gap-3 border-b border-[#E6DED1] p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-semibold text-[#191714]">
@@ -554,7 +655,18 @@ const SlideCraftWorkbench = () => {
             </div>
           ) : null}
 
-          <ValidationStrip items={validationItems} isGenerating={isGenerating} />
+          {generationError ? (
+            <div className="border-b border-[#F0B8A6] bg-[#FFF3EF] px-4 py-3 text-sm text-[#8E321D]">
+              <div className="flex gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{generationError}</span>
+              </div>
+            </div>
+          ) : null}
+
+          {isGenerating || result?.html ? (
+            <ValidationStrip items={validationItems} isGenerating={isGenerating} />
+          ) : null}
 
           <Tabs defaultValue="preview" className="h-[calc(100%-132px)]">
             <TabsList className="mx-4 mt-4 grid w-[260px] grid-cols-2 rounded-full bg-[#F0E8DB] p-1">
@@ -580,6 +692,15 @@ const SlideCraftWorkbench = () => {
                   srcDoc={result.html}
                   className="h-[640px] w-full rounded-2xl border border-[#D8D0C3] bg-white shadow-[0_18px_40px_-28px_rgba(67,54,38,0.45)]"
                 />
+              ) : generationError ? (
+                <ErrorPreview
+                  message={generationError}
+                  onOpenModelConfig={() => {
+                    setIsModelConfigOpen(true);
+                    void loadModelConfig();
+                  }}
+                  onRetry={generate}
+                />
               ) : (
                 <EmptyPreview />
               )}
@@ -593,6 +714,15 @@ const SlideCraftWorkbench = () => {
           </Tabs>
         </section>
       </div>
+
+      <ModelApiDialog
+        form={modelApiForm}
+        open={isModelConfigOpen}
+        isSaving={isSavingModelConfig}
+        onOpenChange={setIsModelConfigOpen}
+        onChange={setModelApiForm}
+        onSave={saveModelConfig}
+      />
 
       {isFullscreenPreviewOpen && result?.html ? (
         <FullscreenPreview
@@ -660,6 +790,92 @@ const PreviewToolbar = ({
       下载
     </Button>
   </div>
+);
+
+const ModelApiDialog = ({
+  form,
+  open,
+  isSaving,
+  onOpenChange,
+  onChange,
+  onSave,
+}: {
+  form: ModelApiForm;
+  open: boolean;
+  isSaving: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChange: (form: ModelApiForm) => void;
+  onSave: () => void;
+}) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="border-[#D8D0C3] bg-[#FFFDF8] sm:max-w-xl">
+      <DialogHeader>
+        <DialogTitle className="font-unbounded text-xl font-normal text-[#191714]">
+          后端模型 API
+        </DialogTitle>
+        <DialogDescription className="text-[#6F6558]">
+          填写 OpenAI 兼容接口，生成时会使用这里保存的模型配置。
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="grid gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="custom-llm-url">接口地址</Label>
+          <Input
+            id="custom-llm-url"
+            value={form.url}
+            onChange={(event) =>
+              onChange({ ...form, url: event.target.value })
+            }
+            placeholder="http://64.90.14.72:8317/v1"
+            className="rounded-2xl border-[#D8D0C3] bg-white"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="custom-llm-key">API Key</Label>
+          <Input
+            id="custom-llm-key"
+            type="password"
+            value={form.apiKey}
+            onChange={(event) =>
+              onChange({ ...form, apiKey: event.target.value })
+            }
+            placeholder="your-api-key"
+            className="rounded-2xl border-[#D8D0C3] bg-white"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="custom-llm-model">模型名</Label>
+          <Input
+            id="custom-llm-model"
+            value={form.model}
+            onChange={(event) =>
+              onChange({ ...form, model: event.target.value })
+            }
+            placeholder="gpt-5.5"
+            className="rounded-2xl border-[#D8D0C3] bg-white"
+          />
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button
+          variant="outline"
+          onClick={() => onOpenChange(false)}
+          className="rounded-full border-[#D8D0C3] bg-white"
+        >
+          取消
+        </Button>
+        <Button
+          onClick={onSave}
+          disabled={isSaving}
+          className="rounded-full bg-[#1F2A24] text-white hover:bg-[#141C18]"
+        >
+          {isSaving ? "保存中..." : "保存配置"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 );
 
 const ValidationStrip = ({
@@ -741,6 +957,38 @@ const EmptyPreview = () => (
   </div>
 );
 
+const ErrorPreview = ({
+  message,
+  onOpenModelConfig,
+  onRetry,
+}: {
+  message: string;
+  onOpenModelConfig: () => void;
+  onRetry: () => void;
+}) => (
+  <div className="flex h-[640px] flex-col items-center justify-center rounded-2xl border border-[#F0B8A6] bg-[#FFF3EF] p-6 text-center">
+    <div className="mb-4 rounded-2xl bg-white p-3 text-[#8E321D] shadow-[0_12px_28px_-24px_rgba(142,50,29,0.8)]">
+      <AlertTriangle className="h-6 w-6" />
+    </div>
+    <p className="text-sm font-semibold text-[#191714]">生成没有完成</p>
+    <p className="mt-2 max-w-md text-sm leading-6 text-[#7A4C18]">{message}</p>
+    <div className="mt-5 flex flex-wrap justify-center gap-2">
+      <Button
+        variant="outline"
+        onClick={onOpenModelConfig}
+        className="rounded-full border-[#D8D0C3] bg-white"
+      >
+        配置模型 API
+      </Button>
+      <Button
+        onClick={onRetry}
+        className="rounded-full bg-[#1F2A24] text-white hover:bg-[#141C18]"
+      >
+        重试生成
+      </Button>
+    </div>
+  </div>
+);
 const FullscreenPreview = ({
   html,
   title,
@@ -814,4 +1062,17 @@ const slugify = (value: string) => {
   return slug || "slidecraft-deck";
 };
 
+const readResponseError = async (response: Response) => {
+  try {
+    const payload = await response.json();
+    if (typeof payload?.detail === "string") return payload.detail;
+    if (typeof payload?.error === "string") return payload.error;
+  } catch {
+    return response.statusText;
+  }
+
+  return response.statusText;
+};
+
 export default SlideCraftWorkbench;
+

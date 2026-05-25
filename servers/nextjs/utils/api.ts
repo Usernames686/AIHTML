@@ -40,7 +40,7 @@ function isElectronRuntime(): boolean {
 }
 
 function shouldUseDirectFastApiOriginInBrowser(): boolean {
-  return isElectronRuntime() || !!getFastApiUrlFromQuery();
+  return isElectronRuntime() || !!getFastApiUrlFromQuery() || !!getConfiguredFastApiUrl();
 }
 
 function resolveBackendPathForRuntime(path: string): string {
@@ -68,8 +68,12 @@ export function getFastAPIUrl(): string {
   }
 
   if (typeof window !== "undefined") {
+    const configured = getConfiguredFastApiUrl();
+    if (configured) {
+      return configured;
+    }
     if (isElectronRuntime()) {
-      return getConfiguredFastApiUrl() || window.location.origin;
+      return window.location.origin;
     }
     return window.location.origin;
   }

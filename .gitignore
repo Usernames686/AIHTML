@@ -18,6 +18,7 @@ nltk
 chroma
 container.db
 .next-build
+tsconfig.tsbuildinfo
 .cursor
 .agents
 skills-lock.json

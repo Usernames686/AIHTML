@@ -1,7 +1,7 @@
-import AuthGate from "@/components/Auth/AuthGate";
+import { redirect } from "next/navigation";
 
 const page = () => {
-    return <AuthGate />;
+    redirect("/slidecraft");
 };
 
 export default page;
