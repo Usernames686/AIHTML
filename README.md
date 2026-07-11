@@ -14,7 +14,9 @@
 
 ## 使用演示
 
-<video src="docs/assets/demo.mp4" controls muted autoplay loop width="100%" style="border-radius:12px; max-width:900px; display:block; margin:0 auto"></video>
+[![观看演示视频](docs/assets/differences.png)](https://raw.githubusercontent.com/Usernames686/AIHTML/main/docs/assets/demo.mp4)
+
+> 点击上方图片查看完整演示视频
 
 ---
 
