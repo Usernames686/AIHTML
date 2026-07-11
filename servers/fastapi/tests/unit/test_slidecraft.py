@@ -3,6 +3,8 @@ from pydantic import ValidationError
 from api.v1.ppt.endpoints.slidecraft import (
     STYLE_PRESETS,
     _build_user_prompt,
+    _merge_warnings,
+    _strip_html_fences,
     _validate_html,
 )
 from models.slidecraft import SlideCraftGenerateRequest
@@ -89,3 +91,28 @@ def test_validate_html_warns_about_external_scripts_and_markdown_fences():
 
     assert any("Markdown code fences" in warning for warning in warnings)
     assert any("external script" in warning for warning in warnings)
+
+
+def test_strip_html_fences_only_removes_outer_html_fence():
+    html = "<!doctype html><html><body>Deck</body></html>"
+
+    assert _strip_html_fences(f"```html\n{html}\n```") == html
+    assert _strip_html_fences(html) == html
+
+
+def test_validate_complete_html_has_no_warnings():
+    html = """<!doctype html>
+    <html><body>
+      <section class="slide"><div class="slide-content">Deck</div></section>
+      <script>class SlidePresentation { fitSlideContent() {} }</script>
+    </body></html>"""
+
+    assert _validate_html(html) == []
+
+
+def test_merge_warnings_preserves_order_and_removes_duplicates():
+    assert _merge_warnings(["First", "Shared"], ["Shared", "Second"]) == [
+        "First",
+        "Shared",
+        "Second",
+    ]

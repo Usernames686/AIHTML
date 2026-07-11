@@ -210,13 +210,17 @@ def _validate_html(html: str) -> list[str]:
         warnings.append("Generated HTML is missing a doctype.")
     if "<section" not in lower or 'class="slide' not in lower:
         warnings.append("Generated HTML may not contain SlideCraft slide sections.")
-    if "class slidepresentation" not in lower and "class slidepresentation" not in lower.replace(" ", ""):
+    if not re.search(r"class\s+slidepresentation\b", lower):
         warnings.append("Generated HTML may be missing the SlidePresentation controller.")
     if "fitslidecontent" not in lower:
         warnings.append("Generated HTML may be missing content auto-fit support.")
     if re.search(r"<script[^>]+src\s*=", lower):
         warnings.append("Generated HTML contains an external script reference.")
     return warnings
+
+
+def _merge_warnings(*warning_groups: list[str]) -> list[str]:
+    return list(dict.fromkeys(warning for group in warning_groups for warning in group))
 
 
 @SLIDECRAFT_ROUTER.post("/generate", response_model=SlideCraftGenerateResponse)
@@ -250,8 +254,10 @@ async def generate_slidecraft_html(
     if not html:
         raise HTTPException(status_code=400, detail="The model returned empty HTML.")
 
-    warnings = list(content.get("warnings") or [])
-    warnings.extend(_validate_html(html))
+    warnings = _merge_warnings(
+        list(content.get("warnings") or []),
+        _validate_html(html),
+    )
 
     return SlideCraftGenerateResponse(
         title=str(content.get("title") or "SlideCraft Presentation"),
