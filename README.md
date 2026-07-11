@@ -14,7 +14,7 @@
 
 ## 使用演示
 
-<video src="https://raw.githubusercontent.com/Usernames686/AIHTML/main/docs/assets/demo.mp4" controls muted autoplay loop playsinline width="100%" style="max-width:900px; border-radius:12px"></video>
+![AIHTML 使用演示](docs/assets/demo.gif)
 
 
 
