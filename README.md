@@ -12,6 +12,12 @@
 
 ---
 
+## 使用演示
+
+<video src="docs/assets/demo.mp4" controls muted autoplay loop width="100%" style="border-radius:12px; max-width:900px; display:block; margin:0 auto"></video>
+
+---
+
 ## 为什么做 AIHTML
 
 做一份 PowerPoint 的隐性成本远高于"写字"本身：找模板、调字号、对齐元素、配色、插入图表……这些工作往往占掉一整天，却跟"要表达什么"毫无关系。
