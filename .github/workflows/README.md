@@ -35,7 +35,7 @@ export PYTHONPATH=$(pwd)
 pytest tests/unit/test_slidecraft.py -q
 
 # FastAPI startup and route smoke test
-python -c "from api.main import app; assert any(route.path == '/api/v1/ppt/slidecraft/generate' for route in app.routes)"
+python -c "from api.main import app; assert any(getattr(route, 'path', None) == '/api/v1/ppt/slidecraft/generate' for route in app.routes)"
 ```
 
 ### Next.js Tests

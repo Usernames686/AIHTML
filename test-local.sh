@@ -85,7 +85,7 @@ if [ -d "servers/fastapi" ]; then
     export DISABLE_IMAGE_GENERATION=true && \
     export PYTHONPATH=\$(pwd) && \
     $PYTHON_CMD -m pytest tests/unit/test_slidecraft.py -q && \
-    $PYTHON_CMD -c \"from api.main import app; assert any(route.path == '/api/v1/ppt/slidecraft/generate' for route in app.routes); print('FastAPI app loaded')\"
+    $PYTHON_CMD -c \"from api.main import app; assert any(getattr(route, 'path', None) == '/api/v1/ppt/slidecraft/generate' for route in app.routes); print('FastAPI app loaded')\"
     "
 else
     echo -e "${YELLOW}⚠ servers/fastapi not found, skipping${NC}"
