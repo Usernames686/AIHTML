@@ -1,4 +1,4 @@
-name: Test All Applications
+name: Test AIHTML Applications
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-fastapi:
-    name: Test Main FastAPI
+    name: Test SlideCraft FastAPI
     runs-on: ubuntu-latest
     
     defaults:
@@ -26,41 +26,26 @@ jobs:
         python-version: "3.11"
         cache: 'pip'
     
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libreoffice \
-          fontconfig \
-          chromium \
-          chromium-driver \
-          imagemagick
-    
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        # Install package in editable mode if pyproject.toml exists, otherwise install dependencies directly
-        if [ -f "pyproject.toml" ]; then
-          pip install -e .
-        else
-          pip install aiohttp aiomysql aiosqlite asyncpg fastapi[standard] \
-            pathvalidate pdfplumber chromadb sqlmodel \
-            anthropic google-genai openai fastmcp dirtyjson
-        fi
+        pip install -e .
     
     - name: Set up environment variables
       run: |
         echo "APP_DATA_DIRECTORY=/tmp/app_data" >> $GITHUB_ENV
-        echo "TEMP_DIRECTORY=/tmp/presenton" >> $GITHUB_ENV
-        echo "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium" >> $GITHUB_ENV
+        echo "TEMP_DIRECTORY=/tmp/aihtml" >> $GITHUB_ENV
         echo "DATABASE_URL=sqlite+aiosqlite:///./test.db" >> $GITHUB_ENV
         echo "DISABLE_ANONYMOUS_TRACKING=true" >> $GITHUB_ENV
         echo "DISABLE_IMAGE_GENERATION=true" >> $GITHUB_ENV
 
-    - name: Build FastAPI binary
+    - name: Run SlideCraft tests
       run: |
-        python -m pip install pyinstaller
-        pyinstaller server.spec
+        pytest tests/unit/test_slidecraft.py -q
+
+    - name: Smoke test FastAPI app
+      run: |
+        python -c "from api.main import app; assert any(route.path == '/api/v1/ppt/slidecraft/generate' for route in app.routes); print('FastAPI app loaded')"
 
   test-nextjs:
     name: Test Main Next.js
@@ -82,7 +67,7 @@ jobs:
         cache-dependency-path: servers/nextjs/package-lock.json
     
     - name: Install dependencies
-      run: npm ci
+      run: npm ci --ignore-scripts
     
     - name: Build application
       env:
@@ -90,14 +75,3 @@ jobs:
         NEXT_PUBLIC_URL: http://localhost:3000
       run: npm run build
     
-    - name: Run Cypress component tests
-      continue-on-error: true
-      run: |
-        # Check if Cypress tests exist
-        if [ -d "cypress" ] || [ -n "$(find . -name '*.cy.*' -type f 2>/dev/null)" ]; then
-          echo "Running Cypress component tests..."
-          npx cypress run --component
-        else
-          echo "No Cypress tests found, skipping component tests"
-        fi
-

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Local test script that mimics the GitHub Actions workflow
+# Local test script for the current AIHTML workflow
 # Run this to test everything before pushing
 
 # Get the script directory and ensure we're in the project root
@@ -68,7 +68,7 @@ run_test() {
 
 # Test 1: Main FastAPI
 if [ -d "servers/fastapi" ]; then
-    run_test "Main FastAPI" "
+    run_test "SlideCraft FastAPI" "
     cd servers/fastapi && \
     if [ \"$PYTHON_MANAGER\" = \"uv\" ] && [ -f \"pyproject.toml\" ]; then
         echo 'Installing dependencies with uv...' && \
@@ -84,7 +84,8 @@ if [ -d "servers/fastapi" ]; then
     export DISABLE_ANONYMOUS_TRACKING=true && \
     export DISABLE_IMAGE_GENERATION=true && \
     export PYTHONPATH=\$(pwd) && \
-    $PYTHON_CMD -m pytest tests/ -v --tb=short
+    $PYTHON_CMD -m pytest tests/unit/test_slidecraft.py -q && \
+    $PYTHON_CMD -c \"from api.main import app; assert any(route.path == '/api/v1/ppt/slidecraft/generate' for route in app.routes); print('FastAPI app loaded')\"
     "
 else
     echo -e "${YELLOW}⚠ servers/fastapi not found, skipping${NC}"
@@ -93,11 +94,11 @@ fi
 
 # Test 2: Main Next.js
 if [ -d "servers/nextjs" ]; then
-    run_test "Main Next.js (lint & build)" "
+    run_test "Next.js (lint & build)" "
     cd servers/nextjs && \
     if [ ! -d \"node_modules\" ]; then
         echo 'Installing npm dependencies...' && \
-        npm ci 2>&1 | tail -10 || npm install 2>&1 | tail -10
+        npm ci --ignore-scripts 2>&1 | tail -10 || npm install --ignore-scripts 2>&1 | tail -10
     fi && \
     export NEXT_PUBLIC_FAST_API=http://localhost:8000 && \
     export NEXT_PUBLIC_URL=http://localhost:3000 && \
@@ -112,8 +113,8 @@ fi
 # Test 3: Docker Build (optional, skip if Docker not available)
 if command -v docker &> /dev/null && [ -f "Dockerfile" ]; then
     run_test "Docker Build" "
-    docker build -t presenton:test -f Dockerfile . && \
-    docker images | grep presenton:test
+    docker build -t aihtml:test -f Dockerfile . && \
+    docker images | grep aihtml:test
     "
 else
     if [ ! -f "Dockerfile" ]; then

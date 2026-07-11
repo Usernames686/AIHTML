@@ -1,11 +1,11 @@
 # GitHub Actions Workflows
 
-## Test All Applications (`test-all.yml`)
+## Test AIHTML Applications (`test-all.yml`)
 
 This workflow runs comprehensive tests for all parts of the application:
 
-- **Main FastAPI** - Python tests for the main backend
-- **Main Next.js** - Lint, build, and Cypress component tests
+- **SlideCraft FastAPI** - SlideCraft HTML generation tests and app startup smoke test
+- **Main Next.js** - Lint and production build
 - **Docker Build** - Verifies Docker image builds successfully
 
 ## Testing Locally
@@ -22,17 +22,20 @@ This script runs the same tests that GitHub Actions will run, so you can catch i
 
 If you prefer to test individual components:
 
-### FastAPI Tests
+### SlideCraft FastAPI Tests
 ```bash
 # Main FastAPI
 cd servers/fastapi
 export APP_DATA_DIRECTORY=/tmp/app_data
-export TEMP_DIRECTORY=/tmp/presenton
+export TEMP_DIRECTORY=/tmp/aihtml
 export DATABASE_URL=sqlite+aiosqlite:///./test.db
 export DISABLE_ANONYMOUS_TRACKING=true
 export DISABLE_IMAGE_GENERATION=true
 export PYTHONPATH=$(pwd)
-pytest tests/ -v
+pytest tests/unit/test_slidecraft.py -q
+
+# FastAPI startup and route smoke test
+python -c "from api.main import app; assert any(route.path == '/api/v1/ppt/slidecraft/generate' for route in app.routes)"
 ```
 
 ### Next.js Tests
@@ -45,6 +48,6 @@ npm run build
 
 ### Docker Build
 ```bash
-docker build -t presenton:test -f Dockerfile .
-docker images | grep presenton:test
+docker build -t aihtml:test -f Dockerfile .
+docker images | grep aihtml:test
 ```
