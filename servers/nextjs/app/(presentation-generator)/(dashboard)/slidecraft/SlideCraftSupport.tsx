@@ -12,14 +12,6 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GENERATION_STEPS, ModelApiForm, ValidationItem } from "./slidecraft-config";
@@ -58,13 +50,33 @@ export const ModelApiDialog = ({
   onChange: (form: ModelApiForm) => void;
   onSave: () => void;
 }) => (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="border-[#D8D0C3] bg-[#FFFDF8] sm:max-w-xl">
-      <DialogHeader>
-        <DialogTitle className="font-unbounded text-xl font-normal text-[#191714]">后端模型 API</DialogTitle>
-        <DialogDescription className="text-[#6F6558]">填写 OpenAI 兼容接口，生成时会使用这里保存的模型配置。</DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-4">
+  open ? (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onOpenChange(false);
+      }}
+    >
+      <div
+        className="relative grid w-full max-w-xl gap-5 rounded-xl border border-[#D8D0C3] bg-[#FFFDF8] p-6 text-[#191714] shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="slidecraft-model-api-title"
+      >
+        <button
+          type="button"
+          aria-label="关闭模型 API 配置"
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 rounded-md p-1 text-[#6F6558] transition hover:bg-[#F0E9DE] hover:text-[#191714]"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <div className="space-y-1 pr-8">
+          <h2 id="slidecraft-model-api-title" className="font-unbounded text-xl font-normal">后端模型 API</h2>
+          <p className="text-sm text-[#6F6558]">填写 OpenAI 兼容接口，生成时会使用这里保存的模型配置。</p>
+        </div>
+        <div className="grid gap-4">
         <div className="space-y-2">
           <Label htmlFor="custom-llm-url">接口地址</Label>
           <Input id="custom-llm-url" value={form.url} onChange={(event) => onChange({ ...form, url: event.target.value })} placeholder="http://64.90.14.72:8317/v1" className="rounded-2xl border-[#D8D0C3] bg-white" />
@@ -77,13 +89,14 @@ export const ModelApiDialog = ({
           <Label htmlFor="custom-llm-model">模型名</Label>
           <Input id="custom-llm-model" value={form.model} onChange={(event) => onChange({ ...form, model: event.target.value })} placeholder="gpt-5.5" className="rounded-2xl border-[#D8D0C3] bg-white" />
         </div>
+        </div>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-full border-[#D8D0C3] bg-white">取消</Button>
+          <Button onClick={onSave} disabled={isSaving} className="rounded-full bg-[#1F2A24] text-white hover:bg-[#141C18]">{isSaving ? "保存中..." : "保存配置"}</Button>
+        </div>
       </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-full border-[#D8D0C3] bg-white">取消</Button>
-        <Button onClick={onSave} disabled={isSaving} className="rounded-full bg-[#1F2A24] text-white hover:bg-[#141C18]">{isSaving ? "保存中..." : "保存配置"}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+    </div>
+  ) : null
 );
 
 export const ValidationStrip = ({ items, isGenerating }: { items: ValidationItem[]; isGenerating: boolean }) => (
